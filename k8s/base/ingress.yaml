@@ -14,7 +14,7 @@ metadata:
 spec:
   ingressClassName: alb
   rules:
-  - host: app.fusisoft.com
+  - host: app.shemphadglobalconcept.com
     http:
       paths:
       - path: /

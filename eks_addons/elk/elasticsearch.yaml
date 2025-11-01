@@ -1,7 +1,3 @@
-#
-# Fluentd configuration - this installs onto all nodes and gathers all logs
-# A separate yaml configures Fluentd
-#
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -70,9 +66,6 @@ spec:
         k8s-app: fluentd-es
         kubernetes.io/cluster-service: "true"
         version: v2.2.0
-      # This annotation ensures that fluentd does not get evicted if the node
-      # supports critical pod annotation based priority scheme.
-      # Note that this does not guarantee admission on the nodes (#40573).
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
         seccomp.security.alpha.kubernetes.io/pod: 'docker/default'
@@ -99,8 +92,6 @@ spec:
           readOnly: true
         - name: config-volume
           mountPath: /etc/fluent/config.d
-      # nodeSelector:
-      #  beta.kubernetes.io/fluentd-ds-ready: "true"
       terminationGracePeriodSeconds: 30
       volumes:
       - name: varlog
@@ -135,7 +126,6 @@ spec:
   selector:
     k8s-app: elasticsearch-logging
 ---
-# RBAC authn and authz
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -212,7 +202,6 @@ spec:
       - image: k8s.gcr.io/elasticsearch:v6.2.5
         name: elasticsearch-logging
         resources:
-          # need more cpu upon initialization, therefore burstable class
           limits:
             cpu: 1000m
           requests:
@@ -232,9 +221,6 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-      # Elasticsearch requires vm.max_map_count to be at least 262144.
-      # If your OS already sets up this number to a higher value, feel free
-      # to remove this init container.
       initContainers:
       - image: alpine:3.6
         command: [ "/sbin/sysctl", "-w", "vm.max_map_count=262144" ]
@@ -253,9 +239,8 @@ spec:
 ---
 
 #
-# Finally, Kibana - for visualising the results
+# Kibana Deployment
 #
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -281,7 +266,6 @@ spec:
       - name: kibana-logging
         image: docker.elastic.co/kibana/kibana-oss:6.2.4
         resources:
-          # need more cpu upon initialization, therefore burstable class
           limits:
             cpu: 1000m
           requests:
@@ -320,10 +304,12 @@ metadata:
   namespace: kube-system
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-2:418272782718:certificate/52524784-6039-4c98-a999-51c3908931abn:aws:acm:us-east-2:999568710647:certificate/c8ef7605-4819-4421-8d70-a29cf653168c
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-2:418272782718:certificate/52524784-6039-4c98-a999-51c3908931ab
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80,"HTTPS":443}]'
+    alb.ingress.kubernetes.io/actions.ssl-redirect: >
+      {"Type": "redirect", "RedirectConfig": {"Protocol": "HTTPS", "Port": "443", "StatusCode": "HTTP_301"}}
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/healthcheck-port: "5601" # Updated to match the service port
+    alb.ingress.kubernetes.io/healthcheck-port: "5601"
     alb.ingress.kubernetes.io/healthcheck-path: /
     alb.ingress.kubernetes.io/success-codes: "200,302"
     alb.ingress.kubernetes.io/load-balancer-name: kibana-alb
@@ -331,7 +317,8 @@ metadata:
 spec:
   ingressClassName: alb
   rules:
-  - http:
+  - host: kibana.shemphadglobalconcept.com
+    http:
       paths:
       - path: /
         pathType: Prefix
@@ -340,3 +327,4 @@ spec:
             name: kibana-logging
             port:
               number: 5601
+
